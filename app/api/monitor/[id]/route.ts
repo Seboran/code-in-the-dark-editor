@@ -15,31 +15,38 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const client = createClient();
-  await client.connect();
-  // TODO : fine tune notifications
-  await client.sql`LISTEN NEWENTRY`;
+  try {
+    await client.connect();
+    // TODO : fine tune notifications
+    await client.sql`LISTEN NEWENTRY`;
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      client.on('notification', async (_message) => {
+    const readable = new ReadableStream({
+      async start(controller) {
+        client.on('notification', async (_message) => {
+          const html = await getHtml(params.id);
+          controller.enqueue(encoder.encode(html));
+        });
+
         const html = await getHtml(params.id);
         controller.enqueue(encoder.encode(html));
-      });
 
-      const html = await getHtml(params.id);
-      controller.enqueue(encoder.encode(html));
-
-      // Stop connexion after long period.
-      setTimeout(() => {
-        controller.close();
+        // Stop connexion after long period.
+        setTimeout(() => {
+          controller.close();
+          client.end();
+        }, MAXIMUM_POOLING_IN_MS);
+      },
+      cancel() {
         client.end();
-      }, MAXIMUM_POOLING_IN_MS);
-    },
-  });
+      },
+    });
 
-  return new Response(readable, {
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
+    return new Response(readable, {
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+  } finally {
+    client.end();
+  }
 }
 
 async function getHtml(id: string) {
