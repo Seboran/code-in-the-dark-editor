@@ -15,38 +15,34 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const client = createClient();
-  try {
-    await client.connect();
-    // TODO : fine tune notifications
-    await client.sql`LISTEN NEWENTRY`;
+  await client.connect();
+  // TODO : fine tune notifications
+  await client.sql`LISTEN NEWENTRY`;
 
-    const readable = new ReadableStream({
-      async start(controller) {
-        client.on('notification', async (_message) => {
-          const html = await getHtml(params.id);
-          controller.enqueue(encoder.encode(html));
-        });
-
+  const readable = new ReadableStream({
+    async start(controller) {
+      client.on('notification', async (_message) => {
         const html = await getHtml(params.id);
         controller.enqueue(encoder.encode(html));
+      });
 
-        // Stop connexion after long period.
-        setTimeout(() => {
-          controller.close();
-          client.end();
-        }, MAXIMUM_POOLING_IN_MS);
-      },
-      cancel() {
+      const html = await getHtml(params.id);
+      controller.enqueue(encoder.encode(html));
+
+      // Stop connexion after long period.
+      setTimeout(() => {
+        controller.close();
         client.end();
-      },
-    });
+      }, MAXIMUM_POOLING_IN_MS);
+    },
+    cancel() {
+      client.end();
+    },
+  });
 
-    return new Response(readable, {
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    });
-  } finally {
-    client.end();
-  }
+  return new Response(readable, {
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  });
 }
 
 async function getHtml(id: string) {
