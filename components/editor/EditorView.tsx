@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  Suspense,
+  useRef,
+} from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import { useEntryStore } from '../../hooks/useEntryStore';
 
@@ -10,6 +16,8 @@ import { Modal } from '../modal/Modal';
 import { Streak } from '../streak/Streak';
 import { Button } from '../button/Button';
 import { Editor } from './Editor';
+import useCalcPatchesHtml from '../../hooks/useCalcPatchesHtml';
+import { RequestSaveEntry } from '../../app/api/save-entry/[id]/route';
 
 const STREAK_TIMEOUT = 10 * 1000;
 
@@ -19,6 +27,15 @@ function Loading() {
   return <h2>🌀 Loading...</h2>;
 }
 
+function usePrevious<T>(value: T) {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
+const randomId = Math.floor(Math.random() * 10000).toString();
 export const EditorView = () => {
   const router = useRouter();
   const { entry, updateHtml, isSubmitted, updateIsSubmitted, updateIsLoading } =
@@ -32,6 +49,29 @@ export const EditorView = () => {
     setStreak(0);
     setPowerMode(false);
   }, STREAK_TIMEOUT);
+
+  const previousHtml = usePrevious(entry?.html) ?? '';
+  const { a } = useCalcPatchesHtml({ html: entry?.html ?? '', previousHtml });
+
+  const entry_id = entry?.fullName + randomId;
+
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!a.length) {
+      return;
+    }
+    const request: RequestSaveEntry = {
+      diff: a,
+      n: n,
+    };
+    setN((n) => n + 1);
+    fetch(`/api/save-entry/${entry_id}`, {
+      body: JSON.stringify(request),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a, entry_id]);
 
   const onChange = useCallback(
     (newValue: string) => {
@@ -68,14 +108,16 @@ export const EditorView = () => {
       return;
     }
 
-    const intensity = 1 + 2 * Math.random() * Math.floor(
-      (streak - POWER_MODE_ACTIVATION_THRESHOLD) / 100,
-    );
+    const intensity =
+      1 +
+      2 *
+        Math.random() *
+        Math.floor((streak - POWER_MODE_ACTIVATION_THRESHOLD) / 100);
     const marginLeftRight = intensity * (Math.random() > 0.5 ? -1 : 1);
     const marginTopBottom = intensity * (Math.random() > 0.5 ? -1 : 1);
     const editor = document.querySelector('#ace-editor') as HTMLElement;
     editor.style.margin = `${marginTopBottom}px ${marginLeftRight}px`;
-    setTimeout(() => editor.style.margin = '', 75);
+    setTimeout(() => (editor.style.margin = ''), 75);
   };
 
   return (
