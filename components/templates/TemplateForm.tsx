@@ -8,23 +8,14 @@ import { TemplateInformations } from '../../config/templates';
 import { useEntryStore } from '../../hooks/useEntryStore';
 
 import styles from '../../styles/register.module.scss';
-import useSWR from 'swr';
-import fetchTemplates from '../../actions/fetchTemplates';
+import { useFetchTemplates } from '../../hooks/useFetchTemplates';
 
 export default function TemplateForm({
   templates: newTemplates,
 }: {
   templates: TemplateInformations[];
 }) {
-  const { data: templates = newTemplates } = useSWR(
-    'templates',
-    async () => {
-      return await fetchTemplates();
-    },
-    {
-      refreshInterval: 2000,
-    }
-  );
+  const { templates = newTemplates } = useFetchTemplates();
 
   const router = useRouter();
   const [selectedTemplateIndex, setSelectedTemplateIndex] = useState<number>(0);
